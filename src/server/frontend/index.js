@@ -1,6 +1,7 @@
 // import favicon from 'serve-favicon';
 import compression from 'compression';
 import config from '../config';
+import device from 'express-device';
 import esteHeaders from '../lib/estemiddleware';
 import express from 'express';
 import intlMiddleware from '../lib/intlmiddleware';
@@ -12,9 +13,11 @@ const app = express();
 app.use(esteHeaders());
 app.use(compression());
 
-// app.use(favicon('assets/img/favicon.ico'))
-app.use('/build', express.static('build'));
-app.use('/assets', express.static('assets'));
+// app.use(favicon('_assets/img/favicon.ico'));
+
+// Serve the static assets. We can cache them as they include hashes.
+app.use('/assets/img', express.static('assets/img', {maxAge: '200d'}));
+app.use('/_assets', express.static('build', {maxAge: '200d'}));
 
 // Intl
 app.use('/node_modules/intl/dist', express.static('node_modules/intl/dist'));
@@ -26,10 +29,17 @@ app.use(intlMiddleware({
 }));
 
 // Load state extras for current user.
+app.use(device.capture());
 app.use(userState());
 
 app.get('*', (req, res, next) => {
-  render(req, res, req.userState, {intl: req.intl}).catch(next);
+  const userState = req.userState.merge({
+    device: {
+      isMobile: ['phone', 'tablet'].indexOf(req.device.type) > -1
+    },
+    intl: req.intl
+  });
+  render(req, res, userState).catch(next);
 });
 
 app.on('mount', () => {
